@@ -92,12 +92,12 @@ export class RobotSupervisor {
   }
 
   private static getOrderForNewBotPhaseTwo(robots: RobotsShape[]): RobotOrder {
-    // s'il n'y a pas autant de mineur que d'assembleur je crée un mineur de bar
-    if (this.getSpecialistRatio('MINE_BAR', 'ASSEMBLE_FOOBAR', robots) < 1)
-      return 'MINE_BAR';
     // s'il n'y a pas de 2 fois plus de mineur de foos que d'assembleur je crée un mineur de foo
-    if (this.getSpecialistRatio('MINE_FOO', 'ASSEMBLE_FOOBAR', robots) < 2)
+    if (this.getSpecialistRatio('MINE_FOO', 'ASSEMBLE_FOOBAR', robots) < 1.2)
       return 'MINE_FOO';
+    // s'il n'y a pas autant de mineur que d'assembleur je crée un mineur de bar
+    if (this.getSpecialistRatio('MINE_BAR', 'ASSEMBLE_FOOBAR', robots) < 0.7)
+      return 'MINE_BAR';
     // s'il n'y a pas 2 fois plus d'assembleur de foobars que de vendeur de foobar je crée un assembleur
     if (this.getSpecialistRatio('ASSEMBLE_FOOBAR', 'SELL_FOOBAR', robots) < 2)
       return 'ASSEMBLE_FOOBAR';
