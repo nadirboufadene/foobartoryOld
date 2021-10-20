@@ -44,6 +44,7 @@ function ConnectedRobotsFleet(
             identifier={robot.identifier}
             key={robot.identifier}
             specialized={robot.specialized}
+            waitingRessources={robot.waitingRessources}
           />
         </Grid>
       ))}

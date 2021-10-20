@@ -15,14 +15,6 @@ function round(value: number, precision: number) {
   return Math.round(value * multiplier) / multiplier;
 }
 
-const initialRobot: RobotsShape = {
-  timer: 1,
-  pendingAction: '',
-  processingAction: '',
-  identifier: uuidv4(),
-  specialized: true,
-};
-
 export interface RobotsState {
   robots: RobotsShape[];
 }
@@ -35,6 +27,7 @@ const initialState: RobotsState = {
       pendingAction: '',
       identifier: uuidv4(),
       specialized: true,
+      waitingRessources: false,
     },
     {
       timer: RobotSupervisor.getTaskTimer('MINE_BAR'),
@@ -42,6 +35,7 @@ const initialState: RobotsState = {
       pendingAction: '',
       identifier: uuidv4(),
       specialized: false,
+      waitingRessources: false,
     },
   ],
 };
@@ -55,17 +49,34 @@ const robotsReducer = createReducer(initialState, builder => {
         );
         if (
           state.robots[index].processingAction !== action.payload.order &&
-          state.robots[index].pendingAction !== action.payload.order
+          state.robots[index].pendingAction !== action.payload.order &&
+          action.payload.order !== 'RESUME_MISSION' &&
+          action.payload.order !== 'WAITING_RESSOURCES'
         ) {
           state.robots[index].pendingAction = action.payload.order;
           state.robots[index].processingAction = 'CHANGE_TASK';
           state.robots[index].timer =
             RobotSupervisor.getTaskTimer('CHANGE_TASK');
+        } else if (
+          state.robots[index].processingAction !== action.payload.order &&
+          state.robots[index].pendingAction !== action.payload.order &&
+          action.payload.order === 'RESUME_MISSION'
+        ) {
+          state.robots[index].processingAction =
+            state.robots[index].pendingAction;
+        } else if (
+          state.robots[index].processingAction !== action.payload.order &&
+          state.robots[index].pendingAction !== action.payload.order &&
+          action.payload.order === 'WAITING_RESSOURCES'
+        ) {
+          state.robots[index].pendingAction =
+            state.robots[index].processingAction;
+          state.robots[index].processingAction = 'WAITING_RESSOURCES';
         }
       }
     })
     .addCase(buyRobotAction, state => {
-      state.robots = [...state.robots, initialRobot];
+      state.robots = [...state.robots, RobotSupervisor.buildNewRobot()];
     })
     .addCase(clockAddSecondAction, state => {
       state.robots = state.robots.map(robot => {
@@ -78,13 +89,7 @@ const robotsReducer = createReducer(initialState, builder => {
         robot => robot.identifier === action.payload,
       );
       const newArray = [...state.robots];
-      if (
-        !newArray[robotIndex].specialized &&
-        newArray[robotIndex].pendingAction
-      ) {
-        newArray[robotIndex].timer = RobotSupervisor.getTaskTimer(
-          newArray[robotIndex].pendingAction,
-        );
+      if (newArray[robotIndex].processingAction === 'CHANGE_TASK') {
         newArray[robotIndex].processingAction =
           newArray[robotIndex].pendingAction;
         newArray[robotIndex].pendingAction = '';

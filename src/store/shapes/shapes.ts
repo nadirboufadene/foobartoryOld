@@ -14,6 +14,8 @@ export type RobotOrder =
   | 'MINE_FOO'
   | 'BUY_ROBOT'
   | 'CHANGE_TASK'
+  | 'WAITING_RESSOURCES'
+  | 'RESUME_MISSION'
   | '';
 
 export interface RobotsShape {
@@ -22,6 +24,7 @@ export interface RobotsShape {
   pendingAction: RobotOrder;
   identifier: string;
   specialized: boolean;
+  waitingRessources: boolean;
 }
 
 export interface WarehouseShape {

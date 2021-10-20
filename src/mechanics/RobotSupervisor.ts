@@ -4,13 +4,27 @@ import {
   RobotsShape,
   WarehouseShape,
 } from '../store/shapes/shapes';
+import { v4 as uuidv4 } from 'uuid';
 
 export class RobotSupervisor {
+  private static initialRobot: RobotsShape = {
+    timer: 1,
+    pendingAction: '',
+    processingAction: '',
+    identifier: 'temporary',
+    specialized: true,
+    waitingRessources: false,
+  };
+
+  public static buildNewRobot() {
+    return { ...this.initialRobot, identifier: uuidv4() };
+  }
+
   private static getOrderForNewBotPhaseOne(robots: RobotsShape[]): RobotOrder {
     if (
-      robots.find(
+      !robots.find(
         robot =>
-          !robot.specialized &&
+          robot.specialized &&
           (robot.processingAction === 'MINE_BAR' ||
             robot.pendingAction === 'MINE_BAR'),
       )
@@ -18,9 +32,9 @@ export class RobotSupervisor {
       return 'MINE_BAR';
     }
     if (
-      robots.find(
+      !robots.find(
         robot =>
-          !robot.specialized &&
+          robot.specialized &&
           (robot.processingAction === 'ASSEMBLE_FOOBAR' ||
             robot.pendingAction === 'ASSEMBLE_FOOBAR'),
       )
@@ -28,16 +42,60 @@ export class RobotSupervisor {
       return 'ASSEMBLE_FOOBAR';
     }
     if (
-      robots.find(
+      !robots.find(
         robot =>
-          !robot.specialized &&
+          robot.specialized &&
           (robot.processingAction === 'SELL_FOOBAR' ||
             robot.pendingAction === 'SELL_FOOBAR'),
       )
     ) {
       return 'SELL_FOOBAR';
     }
-    return 'BUY_ROBOT';
+    if (
+      !robots.find(
+        robot =>
+          robot.specialized &&
+          (robot.processingAction === 'BUY_ROBOT' ||
+            robot.pendingAction === 'BUY_ROBOT'),
+      )
+    ) {
+      return 'BUY_ROBOT';
+    }
+    return 'MINE_FOO';
+  }
+
+  private static enoughRessources(
+    order: RobotOrder,
+    warehouse: WarehouseShape,
+  ): boolean {
+    if (
+      order === 'BUY_ROBOT' &&
+      (warehouse.bank < 3 || warehouse.foos.length < 6)
+    ) {
+      return false;
+    } else if (
+      order === 'ASSEMBLE_FOOBAR' &&
+      (warehouse.foos.length < 1 || warehouse.bars.length < 1)
+    ) {
+      return false;
+    } else if (order === 'SELL_FOOBAR' && warehouse.foobars.length < 5) {
+      return false;
+    }
+    return true;
+  }
+
+  private static putRobotsOnOrder(
+    robots: RobotsShape[],
+    order: RobotOrder,
+  ): newOrderShape[] {
+    let orders: newOrderShape[] = [];
+    robots.map(robot =>
+      orders.push({
+        order: order,
+        robotIdentifier: robot.identifier,
+      }),
+    );
+    return orders;
   }
 
   private static phaseOne(
@@ -111,7 +169,63 @@ export class RobotSupervisor {
         order: 'MINE_BAR',
       });
     }
-
+    if (!this.enoughRessources('BUY_ROBOT', warehouse)) {
+      orders = orders.concat(
+        this.putRobotsOnOrder(
+          robots.filter(robot => robot.processingAction === 'BUY_ROBOT'),
+          'WAITING_RESSOURCES',
+        ),
+      );
+    } else {
+      orders = orders.concat(
+        this.putRobotsOnOrder(
+          robots.filter(
+            robot =>
+              robot.processingAction === 'WAITING_RESSOURCES' &&
+              robot.pendingAction === 'BUY_ROBOT',
+          ),
+          'RESUME_MISSION',
+        ),
+      );
+    }
+    if (!this.enoughRessources('ASSEMBLE_FOOBAR', warehouse)) {
+      orders = orders.concat(
+        this.putRobotsOnOrder(
+          robots.filter(robot => robot.processingAction === 'ASSEMBLE_FOOBAR'),
+          'WAITING_RESSOURCES',
+        ),
+      );
+    } else {
+      orders = orders.concat(
+        this.putRobotsOnOrder(
+          robots.filter(
+            robot =>
+              robot.processingAction === 'WAITING_RESSOURCES' &&
+              robot.pendingAction === 'ASSEMBLE_FOOBAR',
+          ),
+          'RESUME_MISSION',
+        ),
+      );
+    }
+    if (!this.enoughRessources('SELL_FOOBAR', warehouse)) {
+      orders = orders.concat(
+        this.putRobotsOnOrder(
+          robots.filter(robot => robot.processingAction === 'SELL_FOOBAR'),
+          'WAITING_RESSOURCES',
+        ),
+      );
+    } else {
+      orders = orders.concat(
+        this.putRobotsOnOrder(
+          robots.filter(
+            robot =>
+              robot.processingAction === 'WAITING_RESSOURCES' &&
+              robot.pendingAction === 'SELL_FOOBAR',
+          ),
+          'RESUME_MISSION',
+        ),
+      );
+    }
     return orders;
   }
 
@@ -149,10 +263,16 @@ export class RobotSupervisor {
       return 2;
     }
     if (task === 'BUY_ROBOT') {
-      return 0;
+      return 2;
     }
     if (task === 'SELL_FOOBAR') {
       return 10;
+    }
+    if (task === 'RESUME_MISSION') {
+      return 0;
+    }
+    if (task === 'WAITING_RESSOURCES') {
+      return 0;
     }
     return 0;
   }
