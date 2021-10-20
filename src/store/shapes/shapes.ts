@@ -24,7 +24,6 @@ export interface RobotsShape {
   pendingAction: RobotOrder;
   identifier: string;
   specialized: boolean;
-  waitingRessources: boolean;
 }
 
 export interface WarehouseShape {

@@ -1,5 +1,6 @@
 import { newOrderShape } from '../store/actions';
 import {
+  FoobarElem,
   RobotOrder,
   RobotsShape,
   WarehouseShape,
@@ -13,11 +14,18 @@ export class RobotSupervisor {
     processingAction: '',
     identifier: 'temporary',
     specialized: true,
-    waitingRessources: false,
   };
 
-  public static buildNewRobot() {
+  private static initialFoobarElem: FoobarElem = {
+    identifier: 'temporary',
+  };
+
+  public static buildNewRobot(): RobotsShape {
     return { ...this.initialRobot, identifier: uuidv4() };
+  }
+
+  public static buildNewFoobarElem(): FoobarElem {
+    return { ...this.initialFoobarElem, identifier: uuidv4() };
   }
 
   private static getOrderForNewBotPhaseOne(robots: RobotsShape[]): RobotOrder {
@@ -62,6 +70,38 @@ export class RobotSupervisor {
       return 'BUY_ROBOT';
     }
     return 'MINE_FOO';
+  }
+
+  private static getSpecialistRatio(
+    firstJob: RobotOrder,
+    secondJob: RobotOrder,
+    robots: RobotsShape[],
+  ) {
+    return (
+      robots.filter(
+        robot =>
+          robot.processingAction === firstJob ||
+          robot.pendingAction === firstJob,
+      ).length /
+      robots.filter(
+        robot =>
+          robot.processingAction === secondJob ||
+          robot.pendingAction === secondJob,
+      ).length
+    );
+  }
+
+  private static getOrderForNewBotPhaseTwo(robots: RobotsShape[]): RobotOrder {
+    // s'il n'y a pas autant de mineur que d'assembleur je crée un mineur de bar
+    if (this.getSpecialistRatio('MINE_BAR', 'ASSEMBLE_FOOBAR', robots) < 1)
+      return 'MINE_BAR';
+    // s'il n'y a pas de 2 fois plus de mineur de foos que d'assembleur je crée un mineur de foo
+    if (this.getSpecialistRatio('MINE_FOO', 'ASSEMBLE_FOOBAR', robots) < 2)
+      return 'MINE_FOO';
+    // s'il n'y a pas 2 fois plus d'assembleur de foobars que de vendeur de foobar je crée un assembleur
+    if (this.getSpecialistRatio('ASSEMBLE_FOOBAR', 'SELL_FOOBAR', robots) < 2)
+      return 'ASSEMBLE_FOOBAR';
+    return 'SELL_FOOBAR';
   }
 
   private static enoughRessources(
@@ -188,6 +228,46 @@ export class RobotSupervisor {
         ),
       );
     }
+    return orders;
+  }
+
+  private static phaseTwo(robots: RobotsShape[]): newOrderShape[] {
+    let orders: newOrderShape[] = [];
+
+    const newRobots = robots.filter(
+      robot =>
+        robot.specialized === true &&
+        robot.pendingAction === '' &&
+        robot.processingAction === '',
+    );
+    if (newRobots) {
+      newRobots.map(robot =>
+        orders.push({
+          order: this.getOrderForNewBotPhaseTwo(robots),
+          robotIdentifier: robot.identifier,
+        }),
+      );
+    }
+    return orders;
+  }
+
+  public static getNewOrders(
+    robots: RobotsShape[],
+    warehouse: WarehouseShape,
+  ): newOrderShape[] {
+    let orders: newOrderShape[] = [];
+
+    if (robots.length <= 5) orders = this.phaseOne(robots, warehouse);
+    else {
+      const flyingRobot = robots.find(robot => robot.specialized === false);
+      if (flyingRobot)
+        orders.push({
+          robotIdentifier: flyingRobot.identifier,
+          order: 'BUY_ROBOT',
+        });
+      orders = orders.concat(this.phaseTwo(robots));
+    }
+
     if (!this.enoughRessources('ASSEMBLE_FOOBAR', warehouse)) {
       orders = orders.concat(
         this.putRobotsOnOrder(
@@ -229,20 +309,6 @@ export class RobotSupervisor {
     return orders;
   }
 
-  private static phaseTwo(
-    robots: RobotsShape[],
-    warehouse: WarehouseShape,
-  ): newOrderShape[] {
-    return [];
-  }
-
-  public static getNewOrders(
-    robots: RobotsShape[],
-    warehouse: WarehouseShape,
-  ): newOrderShape[] {
-    return this.phaseOne(robots, warehouse);
-  }
-
   public static getTaskTimer(task: RobotOrder): number {
     function genRand(min: number, max: number, decimalPlaces: number) {
       var rand = Math.random() * (max - min) + min;
@@ -263,7 +329,7 @@ export class RobotSupervisor {
       return 2;
     }
     if (task === 'BUY_ROBOT') {
-      return 2;
+      return 0;
     }
     if (task === 'SELL_FOOBAR') {
       return 10;
